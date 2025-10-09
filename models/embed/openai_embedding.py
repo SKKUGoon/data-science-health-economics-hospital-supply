@@ -120,9 +120,14 @@ class PatientChartEmbedding:
         mlflow.log_param("top_departments", str(top_departments))
         mlflow.log_param("top_primary_diagnoses", str(top_primary_dx))
 
-    def create_patient_document_by_date(self, df: pd.DataFrame, batch_size: int = 50) -> None:
+    def create_patient_document_by_date(self, df: pd.DataFrame, batch_size: int = 50, resume_from: Optional[int] = None) -> None:
         if self.client is None:
             raise ValueError("Qdrant client is not initiated")
+
+        if resume_from is not None:
+            print(f"Resuming from group number {resume_from}...")
+
+        rfr = resume_from if resume_from is not None else 0
 
         with mlflow.start_run(nested=True, run_name="patient_embedding_pipeline"):
             start_time = time.time()
@@ -154,6 +159,12 @@ class PatientChartEmbedding:
             embedding_times = []
 
             for idx, gdf in tqdm(grouped_data, desc="Processing patient documents"):
+                if processed_count < rfr:
+                    # For abrupt stop of embedding, and resuming from that line
+                    # e.g. If the datapoint only has 57000 points, you should set `resume_from` 57000
+                    processed_count += 1
+                    continue
+
                 id_, dt_ = idx
 
                 doc_info, doc_id = self.profile.qdrant_document_id(id_, dt_.strftime("%Y-%m-%d"))

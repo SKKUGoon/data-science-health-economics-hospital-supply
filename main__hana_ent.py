@@ -21,5 +21,5 @@ if __name__ == "__main__":
         host=os.getenv("QDRANT_HOST"),
         port=os.getenv("QDRANT_PORT")
     )
-    emb.create_patient_document_by_date(df)
+    emb.create_patient_document_by_date(df, resume_from=57_000)
     print("[Run] Embedding completed")
