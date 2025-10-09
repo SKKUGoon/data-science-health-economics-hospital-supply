@@ -30,7 +30,7 @@ def _load_inpatient_data(root_dir: Path, year: Optional[int]) -> pd.DataFrame:
 
     for y in ys:
         print(f"Loading inpatient data for {y}...")
-        fn = f"{year}.01~12_입원.xlsx"
+        fn = f"{y}.01~12_입원.xlsx"
         fp = os.path.join(root_dir, "data", "external", "hana_ent", fn)
         pw = os.getenv("DATA_PASSWORD_HANAENT")
         if pw is None or pw == "":
@@ -69,10 +69,10 @@ def _load_outpatient_data(root_dir: Path, year: Optional[int], quarter: Optional
 
     for y in ys:
         fns = [
-            ("Q1", f"{year}.01~03_외래.xlsx"),
-            ("Q2", f"{year}.04~06_외래.xlsx"),
-            ("Q3", f"{year}.07~09_외래.xlsx"),
-            ("Q4", f"{year}.10~12_외래.xlsx"),
+            ("Q1", f"{y}.01~03_외래.xlsx"),
+            ("Q2", f"{y}.04~06_외래.xlsx"),
+            ("Q3", f"{y}.07~09_외래.xlsx"),
+            ("Q4", f"{y}.10~12_외래.xlsx"),
         ]
 
         for q, fn in fns:
