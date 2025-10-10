@@ -18,3 +18,4 @@ mlruns/
 
 # Custom
 test.py
+.kiro/
