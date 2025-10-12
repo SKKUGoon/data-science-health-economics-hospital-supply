@@ -4,14 +4,14 @@ import time
 from datetime import datetime
 
 from qdrant_client.http.models import Distance, VectorParams, PointStruct, Filter, FieldCondition, MatchValue
-from qdrant_client import QdrantClient, AsyncQdrantClient
+from qdrant_client import QdrantClient
 import pandas as pd
+import numpy as np
 import mlflow
 import openai
 from tqdm import tqdm
 
-from core.config import PipelineConfig
-from core.data_models import EmbeddingResult, EmbeddingMetrics
+from core.data_models import EmbeddingResult, EmbeddingMetrics, EmbeddingRetrieval
 from utils.auth.hospital_profile import HospitalProfile
 from utils.logging.pipeline_logger import PipelineLogger
 
@@ -28,9 +28,9 @@ class PatientChartEmbedding:
 
     def __init__(
         self,
-        config: PipelineConfig,
         profile: HospitalProfile,
-        vector_size: int = 1536
+        vector_size: int = 1536,
+        batch_size: int = 50,
     ):
         """
         Initialize PatientChartEmbedding with core components.
@@ -40,12 +40,12 @@ class PatientChartEmbedding:
             profile: Hospital profile (optional, can be loaded from config)
             vector_size: Dimension of embedding vectors
         """
-        self.config = config
         self.profile = profile
         self.logger = PipelineLogger("PatientChartEmbedding")
 
         self.collection_name = self.profile.qdrant_collection_name()
         self.vector_size = vector_size
+        self.batch_size = batch_size
         self.client: Optional[QdrantClient] = None
         self.embedding_model = "text-embedding-ada-002"
 
@@ -205,7 +205,7 @@ class PatientChartEmbedding:
 
         # Use batch_size from config if not provided
         if batch_size is None:
-            batch_size = self.config.batch_size
+            batch_size = self.batch_size
 
         rfr = resume_from if resume_from is not None else 0
 
@@ -442,7 +442,7 @@ Secondary: {feat_secondary}
         dt_end_str: Optional[str] = None,
         retreive_limit: int = 99_999,
         date_fmt: str = '%Y-%m-%d'
-    ) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    ) -> EmbeddingRetrieval:
         """
         Retrieve embeddings from Qdrant for a given date range.
 
@@ -503,132 +503,12 @@ Secondary: {feat_secondary}
 
         meta_df: pd.DataFrame = pd.DataFrame(meta, index=idx, columns=["id", "sex", "age", "date", "diagnosis_a", "diagnosis_b", "doc_info"])
         meta_df['date'] = pd.to_datetime(meta_df['date'], format=date_fmt)
-        vector_df: pd.DataFrame = pd.DataFrame(vector, index=idx, columns=[f"e{i+1}" for i in range(self.vector_size)])
 
-        return meta_df, vector_df
-
-
-
-class AsyncPatientChartEmbedding:
-    """
-    Patient chart embedding service with core component integration.
-
-    This class handles the generation and storage of embeddings for patient
-    chart data using OpenAI's embedding API and Qdrant vector database,
-    with integrated logging, configuration and validation.
-
-    Client is Asynchronous
-    - Check if the qdrant_client client is 1.6.1
-    - TODO: embedding insertion phase
-    """
-
-    def __init__(
-        self,
-        config: PipelineConfig,
-        profile: Optional[HospitalProfile] = None,
-        vector_size: int = 1536
-    ):
-        self.config = config
-        self.logger = PipelineLogger("AsyncPatientChartEmbedding")
-
-        # Use profile from paramter or load from config
-        if profile:
-            self.profile = profile
-        elif config.hospital_profile_id:
-            # In a real implementation, you would load the profile by ID
-            # For now, we'll require it to be passed explicitly
-            raise ValueError("Hospital profile must be provided when hospital_profile_id is set in config")
-        else:
-            raise ValueError("Either profile parameter or config.hospital_profile_id must be provided")
-
-        self.collection_name = self.profile.qdrant_collection_name()
-        self.vector_size = vector_size
-        self.client: Optional[AsyncQdrantClient] = None
-        self.embedding_model = "text-embedding-ada-002"
-
-        # Initialize OpenAI API key
-        openai.api_key = os.getenv("OPENAI_API_KEY")
-        if openai.api_key is None or openai.api_key == "":
-            raise ValueError("OPENAI_API_KEY is not set")
-
-        self.logger.info("PatientChartEmbedding initialized", {
-            "hospital_profile": self.profile.hospital_name,
-            "collection_name": self.collection_name,
-            "vector_size": self.vector_size,
-            "embedding_model": self.embedding_model
-        })
-
-    async def initialize_qdrant(self, host: str = "localhost", port: int = 6333):
-        """Initialize Qdrant client and create collection with enhanced logging."""
-        with self.logger.time_operation("qdrant_initialization"):
-            with mlflow.start_run(nested=True, run_name="qdrant_setup"):
-                self.client = AsyncQdrantClient(host=host, port=port)
-
-                # Log parameters using both MLflow and pipeline logger
-                params = {
-                    "qdrant_host": host,
-                    "qdrant_port": port,
-                    "collection_name": self.collection_name,
-                    "vector_size": self.vector_size
-                }
-                self.logger.log_parameters(params)
-
-                collection_exists = await self.client.collection_exists(self.collection_name)
-
-                if not collection_exists:
-                    self.logger.info(f"Creating new collection: {self.collection_name}")
-                    await self.client.create_collection(
-                        collection_name=self.collection_name,
-                        vectors_config=VectorParams(
-                            size=self.vector_size,
-                            distance=Distance.COSINE
-                        )
-                    )
-                    self.logger.log_parameters({
-                        "collection_created": True,
-                        "collection_exists": True
-                    })
-                else:
-                    self.logger.info(f"Using existing collection: {self.collection_name}")
-                    self.logger.log_parameters({
-                        "collection_created": False,
-                        "collection_exists": True
-                    })
-
-    @staticmethod
-    def get_embedding_single(text: str) -> List[float]:
-        """Get embedding from openAI"""
-        response = openai.embeddings.create(
-            input=text,
-            model="text-embedding-ada-002"
+        result = EmbeddingRetrieval(
+            metadata=meta_df,
+            embeddings=np.array(vector),
+            embsize=self.vector_size
         )
-        return response.data[0].embedding
 
-    async def _validate_dataframe(self, df: pd.DataFrame) -> bool:
-        raise NotImplementedError()
-
-    async def _log_dataset_stats(self, df: pd.DataFrame) -> Dict[str, Any]:
-        raise NotImplementedError()
-
-    async def create_patient_document_by_date(
-        self,
-        df: pd.DataFrame,
-        batch_size: Optional[int] = None,
-        resume_from: Optional[int] = None
-    ) -> EmbeddingResult:
-        raise NotImplementedError()
-
-    async def _create_patient_document(self, df: pd.DataFrame) -> str:  # Document
-        raise NotImplementedError()
-
-    async def _create_patient_meta(self, df: pd.DataFrame) -> Dict[str, Any]:
-        raise NotImplementedError()
-
-    async def retrieve_embedding(
-        self,
-        dt_start_str: Optional[str],
-        dt_end_str: Optional[str],
-        retreive_limit: int = 99_999
-    ) -> Tuple[pd.DataFrame, pd.DataFrame]:
-        raise NotImplementedError()
+        return result
 

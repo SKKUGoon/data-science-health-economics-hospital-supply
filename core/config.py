@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 import warnings
 
 
-class PipelineConfig(BaseModel):
+class TwoStepConfig(BaseModel):
     """
     Unified configuration class for the MLflow Time Series Clustering Pipeline.
 
@@ -355,3 +355,7 @@ class PipelineConfig(BaseModel):
     def model_post_init(self, __context) -> None:
         """Post-initialization validation and warnings."""
         self.check_parameter_compatibility()
+
+
+class DFMConfig(BaseModel):
+    ...

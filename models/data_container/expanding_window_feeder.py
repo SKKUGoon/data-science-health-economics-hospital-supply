@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from datetime import timedelta, datetime
 from typing import Iterable, Iterator, Tuple
 
@@ -48,7 +46,7 @@ class ExpandingWindowFeeder:
             datetime_col: Column name identifying event timestamps.
 
         Yields:
-            Tuple of (train_df, test_df) for each window.
+            Tuple of (train_df, test_df, train_start and end, test_start and end) for each window.
         """
         if datetime_col not in data.columns:
             raise KeyError(f"Column '{datetime_col}' not found in DataFrame")

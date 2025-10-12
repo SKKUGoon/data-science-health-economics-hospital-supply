@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import timedelta, datetime
 from typing import Iterable, Iterator, Tuple
 
 import pandas as pd
@@ -39,7 +39,7 @@ class RollingWindowFeeder:
         self,
         data: pd.DataFrame,
         datetime_col: str,
-    ) -> Iterator[Tuple[pd.DataFrame, pd.DataFrame]]:
+    ) -> Iterator[Tuple[pd.DataFrame, pd.DataFrame, Tuple[datetime, datetime], Tuple[datetime, datetime]]]:
         """
         Yield sequential expanding-window splits.
 
@@ -74,6 +74,11 @@ class RollingWindowFeeder:
             test_df = data.loc[test_mask]
 
             if not self.drop_empty_batches or (not train_df.empty and not test_df.empty):
-                yield train_df.sort_values(datetime_col), test_df.sort_values(datetime_col)
+                yield (
+                    train_df.sort_values(datetime_col),
+                    test_df.sort_values(datetime_col),
+                    (train_start, current_day),
+                    (current_day, test_end)
+                )
 
             current_day += self._forward_delta

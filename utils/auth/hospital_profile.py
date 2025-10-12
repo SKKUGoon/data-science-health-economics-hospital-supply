@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 from typing import Dict, Any, Optional, List, Tuple
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 import re
 
 
@@ -22,7 +22,7 @@ class HospitalProfile(BaseModel):
         }
         validate_assignment = True
 
-    @validator('hospital_name')
+    @field_validator('hospital_name')
     def validate_hospital_name(cls, v):
         """Validate hospital name is not empty and has reasonable length."""
         if not v or not v.strip():
@@ -33,7 +33,7 @@ class HospitalProfile(BaseModel):
             raise ValueError('Hospital name cannot exceed 200 characters')
         return v.strip()
 
-    @validator('hospital_id')
+    @field_validator('hospital_id')
     def validate_hospital_id(cls, v):
         """Validate hospital ID format."""
         if not v or not v.strip():
@@ -43,11 +43,21 @@ class HospitalProfile(BaseModel):
             raise ValueError('Hospital ID can only contain alphanumeric characters, hyphens, and underscores')
         return v.strip()
 
-    @validator('contact_info', 'settings', 'metadata')
+    @field_validator('contact_info', 'settings', 'metadata')
     def validate_dict_fields(cls, v):
         """Ensure dict fields are not None."""
         return v if v is not None else {}
 
+    # Mlflow operations
+    def mlflow_prep_experiment_name(self) -> str:
+        """Generate Mlflow experiment name for preparation experiment. - embedding"""
+        return f"{self.hospital_id}_prep"
+
+    def mlflow_main_experiment_name(self) -> str:
+        """Generate Mlflow experiment name for main experiment. - modeling"""
+        return f"{self.hospital_id}_main"
+
+    # Qdrant vector database operations
     def qdrant_collection_name(self) -> str:
         """Generate Qdrant collection name for this hospital."""
         return f"{self.hospital_id}_patient_embedding"
@@ -123,109 +133,3 @@ class HospitalProfile(BaseModel):
     def from_dict(cls, data: Dict[str, Any]) -> 'HospitalProfile':
         """Create HospitalProfile from dictionary."""
         return cls(**data)
-
-
-# class HospitalManager:
-#     """
-#     Simple hospital profile manager for session management.
-
-#     This is a basic implementation that can be extended with proper
-#     authentication and persistence mechanisms.
-#     """
-
-#     def __init__(self):
-#         self._current_hospital: Optional[HospitalProfile] = None
-#         self._is_logged_in = False
-
-#     def login(self, hospital_profile: HospitalProfile) -> bool:
-#         """
-#         Login with a hospital profile.
-
-#         Args:
-#             hospital_profile: Hospital profile to login with
-
-#         Returns:
-#             True if login successful, False otherwise
-#         """
-#         if not hospital_profile.is_valid_for_operations():
-#             return False
-
-#         self._current_hospital = hospital_profile
-#         self._is_logged_in = True
-#         return True
-
-#     def logout(self) -> None:
-#         """Logout current hospital."""
-#         self._current_hospital = None
-#         self._is_logged_in = False
-
-#     def is_logged_in(self) -> bool:
-#         """Check if a hospital is currently logged in."""
-#         return self._is_logged_in and self._current_hospital is not None
-
-#     def get_current_hospital(self) -> Optional[HospitalProfile]:
-#         """Get current hospital profile."""
-#         return self._current_hospital if self._is_logged_in else None
-
-#     def update_current_hospital(self, **kwargs) -> bool:
-#         """
-#         Update current hospital profile.
-
-#         Args:
-#             **kwargs: Fields to update
-
-#         Returns:
-#             True if update successful, False otherwise
-#         """
-#         if not self.is_logged_in():
-#             return False
-
-#         try:
-#             # Create updated profile
-#             current_data = self._current_hospital.dict()
-#             current_data.update(kwargs)
-#             current_data['updated_at'] = datetime.now()
-
-#             updated_profile = HospitalProfile(**current_data)
-#             self._current_hospital = updated_profile
-#             return True
-#         except Exception:
-#             return False
-
-
-# # Global hospital manager instance
-# _hospital_manager = HospitalManager()
-
-
-# def get_hospital_manager() -> HospitalManager:
-#     """Get the global hospital manager instance."""
-#     return _hospital_manager
-
-
-# def create_hospital_profile(
-#     hospital_name: str,
-#     hospital_id: Optional[str] = None,
-#     is_admin: bool = False,
-#     **kwargs
-# ) -> HospitalProfile:
-#     """
-#     Create a new hospital profile with validation.
-
-#     Args:
-#         hospital_name: Name of the hospital
-#         hospital_id: Optional hospital ID (will generate UUID if not provided)
-#         is_admin: Whether this profile has admin privileges
-#         **kwargs: Additional fields for the profile
-
-#     Returns:
-#         HospitalProfile instance
-#     """
-#     if hospital_id is None:
-#         hospital_id = str(uuid.uuid4())
-
-#     return HospitalProfile(
-#         hospital_id=hospital_id,
-#         hospital_name=hospital_name,
-#         is_admin=is_admin,
-#         **kwargs
-#     )
