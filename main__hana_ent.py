@@ -23,14 +23,14 @@ import umap
 # Custom packages
 from utils.auth.hospital_profile import HospitalProfile
 from models.embed.chart_element_embedding import ChartElementEmbedding
-from models.data_container.plugin.patient_epurun import load
+from models.data_container.plugin.patient_hana_ent import load
 
 # Generate the hospital profile for epurun
 # print("[Run] Load data ...")
 # origin = load(root_dir)
 
-print("[Run] Create hospital profile (epurun)")
-hosp = HospitalProfile(hospital_id="epurun_v2", hospital_name="이푸른병원")
+print("[Run] Create hospital profile (hana_ent)")
+hosp = HospitalProfile(hospital_id="hana_ent_v2", hospital_name="하나이비인후과병원")
 emb = ChartElementEmbedding(profile=hosp)
 emb.initialize_qdrant(
     host=os.getenv("QDRANT_HOST"),
@@ -54,15 +54,16 @@ f3_diag = pd.DataFrame(umap_3d.fit_transform(embed['vector_diagnosis']), index=e
 f2_pres = pd.DataFrame(umap_2d.fit_transform(embed['vector_prescription']), index=embed['idx_prescription'], columns=[f"umap{i+1}" for i in range(2)])
 f3_pres = pd.DataFrame(umap_3d.fit_transform(embed['vector_prescription']), index=embed['idx_prescription'], columns=[f"umap{i+1}" for i in range(3)])
 
+# Save the data to parquet files. data/processed/hana_ent
 print("[Run] Saving vector data to parquet files ...")
-f2_dep.to_parquet("data/processed/epurun/f2_dep.parquet")
-f3_dep.to_parquet("data/processed/epurun/f3_dep.parquet")
-f2_diag.to_parquet("data/processed/epurun/f2_diag.parquet")
-f3_diag.to_parquet("data/processed/epurun/f3_diag.parquet")
-f2_pres.to_parquet("data/processed/epurun/f2_pres.parquet")
-f3_pres.to_parquet("data/processed/epurun/f3_pres.parquet")
+f2_dep.to_parquet("data/processed/hana_ent/f2_dep.parquet")
+f3_dep.to_parquet("data/processed/hana_ent/f3_dep.parquet")
+f2_diag.to_parquet("data/processed/hana_ent/f2_diag.parquet")
+f3_diag.to_parquet("data/processed/hana_ent/f3_diag.parquet")
+f2_pres.to_parquet("data/processed/hana_ent/f2_pres.parquet")
+f3_pres.to_parquet("data/processed/hana_ent/f3_pres.parquet")
 
 print("[Run] Saving metadata to parquet files ...")
-embed['meta_department'].to_parquet("data/processed/epurun/meta_dep.parquet")
-embed['meta_diagnosis'].to_parquet("data/processed/epurun/meta_diag.parquet")
-embed['meta_prescription'].to_parquet("data/processed/epurun/meta_pres.parquet")
+embed['meta_department'].to_parquet("data/processed/hana_ent/meta_dep.parquet")
+embed['meta_diagnosis'].to_parquet("data/processed/hana_ent/meta_diag.parquet")
+embed['meta_prescription'].to_parquet("data/processed/hana_ent/meta_pres.parquet")
