@@ -23,7 +23,7 @@ def load(root_dir: Path):
     # Data cleaning - Change type
     patient['입원일'] = pd.to_datetime(patient['입원일'], format='%m/%d/%Y')
     patient['퇴원일'] = pd.to_datetime(patient['퇴원일'], format='%m/%d/%Y')
-    patient['date'] = pd.to_datetime(patient['date'].map(str), format='%Y%m%d')
+    patient['visit_date'] = pd.to_datetime(patient['date'].map(str), format='%Y%m%d')
     patient['date'] = patient['입원일']  # Match it with patient_hana_ent data. Unique patient (per visit) is based on 입원일
     patient = patient.loc[
         ~((patient['입원일'] != patient['입원일']) & (patient['퇴원일'] != patient['퇴원일']))
@@ -39,13 +39,18 @@ def load(root_dir: Path):
             "차트번호": "id",
             "kcd1_e": "primary_diagnosis",
             "kcd2_e": "secondary_diagnosis",
-            'ATC코드 명칭': 'prescription'
+            'ATC코드 명칭': 'prescription',
+            "q_per_c": "quantity",
         },
         axis=1
     )
 
     patient = patient[
-        ['id', 'date', 'sex', 'age', 'primary_diagnosis', 'secondary_diagnosis', 'prescription']
+        [
+            'id', 'date',  # key columns
+            'visit_date', 'sex', 'age', 'primary_diagnosis', 'secondary_diagnosis', 'prescription',  # Embedding columns
+            "quantity",  # Supply estimation - per prescription
+        ]
     ]
     patient['department'] = 'Unspecified'
 

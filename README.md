@@ -96,7 +96,7 @@ hosp_epurun = HospitalProfile(
 
 #### 단계 2: 데이터 로드
 ```python
-from models.container.plugin.patient_epurun import load
+from models.data_container.plugin.patient_epurun import load
 
 df = load(root_dir)
 ```
@@ -121,7 +121,7 @@ emb.create_patient_document_by_date(df)
 ```python
 from utils.auth.hospital_profile import HospitalProfile
 from models.embed.openai_embedding import PatientChartEmbedding
-from models.container.plugin.patient_seoul_hospital import load
+from models.data_container.plugin.patient_seoul_hospital import load
 
 if __name__ == "__main__":
     from dotenv import load_dotenv
