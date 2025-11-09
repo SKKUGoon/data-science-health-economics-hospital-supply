@@ -10,7 +10,10 @@ wheels/
 # Virtual environments
 .venv
 
-/data
+/data/external/**/*.xlsx
+/data/external/**/*.csv
+
+/data/processed/**/*.parquet
 .env
 
 # MLFLOW
