@@ -15,6 +15,7 @@ wheels/
 
 /data/processed/**/*.parquet
 .env
+/data/prediction/*
 
 # MLFLOW
 mlruns/

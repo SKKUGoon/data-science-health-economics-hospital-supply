@@ -186,3 +186,63 @@ def load(root_dir: Path, year: Optional[int] = None, quarter: Optional[int] = No
     patient['department'] = patient['department'].str.strip()
 
     return patient
+
+
+def load_with_code(root_dir: Path, year: Optional[int] = None, quarter: Optional[int] = None) -> pd.DataFrame:
+    """
+    Load patient data for a specific year.
+
+    Args:
+        year (int | None): Year of data to load. If not provided use all the year
+
+    Returns:
+        A pandas DataFrame containing the patient data.
+    ...
+    """
+    tgt = ['주사약제', '수술재료료', '마취료재료']
+
+    inpatient = _load_inpatient_data(root_dir, year)
+    outpatient = _load_outpatient_data(root_dir, year, quarter)
+
+    patient = pd.concat([inpatient, outpatient]).reset_index(drop=True)
+    patient = patient.loc[patient['구분'].isin(tgt)]
+
+    # Merge with ATC code
+    atc = prescription_detail(root_dir)  # Merge key: ['제품코드']
+    patient: pd.DataFrame = pd.merge(patient, atc, left_on='보험코드', right_on='제품코드')
+
+    # Feature Engineering
+    patient['날짜'] = pd.to_datetime(patient['날짜'], format='%Y-%m-%d', errors='coerce')
+    patient['department'] = patient['과'].apply(_engineer_features_department)
+    patient['생년월일'] = patient['생년월일'].apply(_engineer_features_birthday)
+    patient['age'] = patient['날짜'].dt.year - patient['생년월일'].astype(int)
+    patient['sex'] = patient['성별'].apply(lambda x: 1 if x == 'M' else 0)
+    patient['prescription_code'] = patient['ATC코드']
+    patient['id'] = patient['환자번호']
+    patient['date'] = patient['날짜']
+    patient = patient[['상병명', '상병구분', 'id', 'date', 'sex', 'age', 'department', 'prescription_code']]
+
+    gdfs = []
+    for idx, gdf in patient.groupby(by=['id', 'date']):
+        if gdf.shape[0] > 1:
+            diag_main = gdf.loc[gdf['상병구분'] == '주상병']['상병명'].unique().tolist()
+            diag_sub = gdf.loc[gdf['상병구분'] == '부상병']['상병명'].unique().tolist()
+
+            diag_main_str = ", ".join(diag_main)
+            diag_sub_str = ", ".join(diag_sub)
+            gdf['primary_diagnosis'] = diag_main_str
+            gdf['secondary_diagnosis'] = diag_sub_str
+            gdfs.append(gdf)
+
+    patient = pd.concat(gdfs).reset_index(drop=True)
+    patient = patient[
+        ['id', 'date', 'sex', 'age', 'primary_diagnosis', 'secondary_diagnosis', 'prescription_code', 'department']
+    ]
+
+    patient['id'] = patient['id'].astype(int)
+    patient['age'] = patient['age'].astype(int)
+    patient['primary_diagnosis'] = patient['primary_diagnosis'].str.strip()
+    patient['secondary_diagnosis'] = patient['secondary_diagnosis'].str.strip()
+    patient['department'] = patient['department'].str.strip()
+
+    return patient
