@@ -9,7 +9,28 @@ from typing import List, Tuple, Literal, Optional
 
 class DFMConfig(BaseModel):
     n_factors: int = Field(..., description="Number of latent factors")
+
+    # Factor order
+    # * 1: baseline
+    # * 2: often increases short term responsiveness
+    # * 3: More short term responsiveness, but more noise and possible overfitting risk
     factor_order: int = Field(1, description="Factor VAR order (for VAR, not DFM)")
+    
+    # Error Covariance Type
+    # Scalar: one noise variance for all series. It forces the model to treat high frequency movements as noise.
+    # Diagonal. Each series gets its own variance
+    # Unstructured. Allow cross series correlations - Afford the parameters. (Longer training time)
+    error_cov_type: Literal["scalar", "diagonal", "unstructured"] = Field("scalar", description="Error covariance type")
+
+    # Optionally switch factor extraction
+    # * filtered: Kalman filtered factors
+    # * predicted: Predicted factors. Less smooth
+    use_factors: Literal["filtered", "predicted", "smoothed"] = Field("filtered", description="Use filtered, predicted, or smoothed factors")
+
+    # Allow idiosyncratic dynamics. Reduces factor eats everything smoothing
+    # error_order 1 or 2. This gives each observed series its own AR structure in the component. 
+    # Prevents factor from becoming too smooth.
+    error_order: int = Field(0, description="Error order for VAR")
     var_clipping: bool = Field(False, description="Clip columns with almost no variance")
 
 
@@ -54,19 +75,17 @@ def fit_dfm(X: pd.DataFrame, cfg: DFMConfig):
     """
 
     model = DynamicFactor(
-        X,
+        endog=X,
         k_factors=cfg.n_factors,
-        factor_order=1,
-        error_cov_type="scalar"
+        factor_order=cfg.factor_order,
+        error_cov_type=cfg.error_cov_type,
+        error_order=cfg.error_order,
     )
-
     result = model.fit(disp=False)
 
-    raw = result.factors.filtered  # may be ndarray or DataFrame
-    T = len(X)
-    k = cfg.n_factors
+    raw = getattr(result.factors, cfg.use_factors)  # may be ndarray or DataFrame
 
-    # --- Case 1: ndarray ---
+    T, k = len(X), cfg.n_factors
     if isinstance(raw, np.ndarray):
 
         # Shape may be (T, k) or (k, T)
@@ -84,7 +103,6 @@ def fit_dfm(X: pd.DataFrame, cfg: DFMConfig):
         )
         return factor_df, result
 
-    # --- Case 2: DataFrame ---
     if isinstance(raw, pd.DataFrame):
         # Ensure correct orientation
         if raw.shape == (T, k):
